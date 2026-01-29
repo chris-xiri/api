@@ -34,7 +34,13 @@ export const scrapeVendors = async (zipCode: string, trade: string) => {
         for (const item of items) {
             try {
                 const name = item.title || item.name || item.companyName;
-                if (!name) continue;
+                const website = item.website || item.url;
+
+                // Skip vendors without a website
+                if (!name || !website) {
+                    console.log(`Skipping vendor "${name || 'Unknown'}" - no website found`);
+                    continue;
+                }
 
                 const vendorData: Vendor = {
                     companyName: String(name),
@@ -44,16 +50,18 @@ export const scrapeVendors = async (zipCode: string, trade: string) => {
                         coiExpiry: new Date().toISOString(),
                         w9OnFile: false,
                     },
+                    website: website,
+                    phone: item.phone || undefined,
                 };
 
                 // AI summary with a fallback to avoid hanging
                 const summary = await summarizeVendor({
                     companyName: vendorData.companyName,
                     trades: vendorData.trades,
+                    website: vendorData.website,
+                    phone: vendorData.phone,
                     // @ts-ignore - passing extra context for AI
                     address: item.address,
-                    // @ts-ignore
-                    phone: item.phone,
                     // @ts-ignore
                     rating: item.totalScore || item.rating,
                 }).catch(() => "Summary generation failed.");

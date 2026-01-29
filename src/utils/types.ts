@@ -9,6 +9,8 @@ export interface Vendor {
     };
     aiContextSummary?: string;
     ownerId?: string;
+    website?: string;
+    phone?: string;
 }
 
 export interface Client {
