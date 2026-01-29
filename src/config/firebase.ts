@@ -10,6 +10,9 @@ try {
     if (process.env.FIREBASE_SERVICE_ACCOUNT) {
         // Vercel / Environment Variable approach
         const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+        if (serviceAccount.private_key) {
+            serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
+        }
         credential = admin.credential.cert(serviceAccount);
     } else {
         // Local / GCP Auto-Discovery approach
