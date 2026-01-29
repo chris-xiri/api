@@ -15,15 +15,15 @@ export const scrapeVendors = async (zipCode: string, trade: string) => {
         throw new Error('APIFY_API_TOKEN is missing');
     }
 
-    // Google Maps Scraper Actor ID (official Apify actor)
-    const actorId = 'apify/google-maps-scraper';
+    // Google Maps Scraper Actor ID
+    const actorId = 'compass/crawler-google-places';
 
     const input = {
         searchStrings: [`${trade} in ${zipCode}`],
         maxCrawlerConcurrency: 1,
         maxReviews: 0,
         maxImages: 0,
-        maxCrawledPlacesPerSearch: 3, // Reduced for Vercel free tier timeout (10s)
+        maxCrawledPlacesPerSearch: 3,
     };
 
     try {
@@ -36,10 +36,11 @@ export const scrapeVendors = async (zipCode: string, trade: string) => {
 
         for (const item of items) {
             try {
-                if (!item.title) continue;
+                const name = item.title || item.name || item.companyName;
+                if (!name) continue;
 
                 const vendorData: Vendor = {
-                    companyName: item.title,
+                    companyName: String(name),
                     trades: [trade],
                     status: 'Raw Lead',
                     compliance: {
@@ -48,12 +49,16 @@ export const scrapeVendors = async (zipCode: string, trade: string) => {
                     },
                 };
 
+                // AI summary with a fallback to avoid hanging
                 const summary = await summarizeVendor({
                     companyName: vendorData.companyName,
                     trades: vendorData.trades,
+                    // @ts-ignore - passing extra context for AI
                     address: item.address,
+                    // @ts-ignore
                     phone: item.phone,
-                    rating: item.totalScore,
+                    // @ts-ignore
+                    rating: item.totalScore || item.rating,
                 }).catch(() => "Summary generation failed.");
 
                 vendorData.aiContextSummary = summary;
