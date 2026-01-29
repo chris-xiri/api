@@ -10,6 +10,20 @@ const apifyClient = new ApifyClient({
     token: process.env.APIFY_API_TOKEN,
 });
 
+interface ApifyPlaceItem {
+    title?: string;
+    name?: string;
+    companyName?: string;
+    website?: string;
+    url?: string;
+    phone?: string;
+    email?: string;
+    address?: string;
+    totalScore?: number;
+    rating?: number;
+    [key: string]: any;
+}
+
 export const scrapeVendors = async (zipCode: string, trade: string) => {
     if (!process.env.APIFY_API_TOKEN) {
         throw new Error('APIFY_API_TOKEN is missing');
@@ -29,18 +43,22 @@ export const scrapeVendors = async (zipCode: string, trade: string) => {
         const { defaultDatasetId } = run;
         const { items } = await apifyClient.dataset(defaultDatasetId).listItems();
 
-        const newVendors: Vendor[] = [];
+        // 1. Filter valid items first
+        const validItems = (items as unknown as ApifyPlaceItem[]).filter(item => {
+            const name = item.title || item.name || item.companyName;
+            const website = item.website || item.url;
+            if (!name || !website) {
+                console.log(`Skipping vendor "${name || 'Unknown'}" - no website found`);
+                return false;
+            }
+            return true;
+        });
 
-        for (const item of items) {
+        // 2. Process vendors in parallel with Promise.all
+        const vendorPromises = validItems.map(async (item) => {
             try {
                 const name = item.title || item.name || item.companyName;
                 const website = item.website || item.url;
-
-                // Skip vendors without a website
-                if (!name || !website) {
-                    console.log(`Skipping vendor "${name || 'Unknown'}" - no website found`);
-                    continue;
-                }
 
                 const vendorData: Vendor = {
                     companyName: String(name),
@@ -55,34 +73,37 @@ export const scrapeVendors = async (zipCode: string, trade: string) => {
                     email: item.email || undefined,
                 };
 
-                // AI summary with a fallback to avoid hanging
+                // AI summary with fallback
                 const summary = await summarizeVendor({
                     companyName: vendorData.companyName,
                     trades: vendorData.trades,
                     website: vendorData.website,
                     phone: vendorData.phone,
-                    // @ts-ignore - passing extra context for AI
-                    address: item.address,
-                    // @ts-ignore
-                    rating: item.totalScore || item.rating,
-                }).catch(() => "Summary generation failed.");
+                    // Use new typed fields for context
+                    ...(item.address ? { address: item.address } : {}),
+                    ...(item.totalScore || item.rating ? { rating: item.totalScore || item.rating } : {}),
+                } as any).catch(() => "Summary generation failed.");
 
                 vendorData.aiContextSummary = summary;
-                newVendors.push(vendorData);
+                return vendorData;
             } catch (err) {
-                console.error('Error processing item:', err);
+                console.error('Error processing individual item:', err);
+                return null;
             }
-        }
-
-        // Batch write to Firestore
-        const batch = db.batch();
-
-        newVendors.forEach((vendor) => {
-            const docRef = db.collection('vendors').doc(); // Auto-ID
-            batch.set(docRef, vendor);
         });
 
-        await batch.commit();
+        const results = await Promise.all(vendorPromises);
+        const newVendors = results.filter((v): v is Vendor => v !== null);
+
+        // 3. Batch write to Firestore
+        if (newVendors.length > 0) {
+            const batch = db.batch();
+            newVendors.forEach((vendor) => {
+                const docRef = db.collection('vendors').doc(); // Auto-ID
+                batch.set(docRef, vendor);
+            });
+            await batch.commit();
+        }
 
         return newVendors;
 
