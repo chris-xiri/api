@@ -6,7 +6,7 @@ dotenv.config();
 
 // Initialize Gemini
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
-const model = genAI.getGenerativeModel({ model: 'gemini-pro' }); // Or gemini-1.5-flash if available
+const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
 export const summarizeVendor = async (vendorData: Partial<Vendor>): Promise<string> => {
     try {
