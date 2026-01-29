@@ -6,7 +6,7 @@ dotenv.config();
 
 // Initialize Gemini
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
-const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
 
 export const summarizeVendor = async (vendorData: Partial<Vendor>): Promise<string> => {
     try {
@@ -19,7 +19,7 @@ export const summarizeVendor = async (vendorData: Partial<Vendor>): Promise<stri
         // Return a basic summary based on available data
         const trades = vendorData.trades?.join(', ') || 'General Services';
         const name = vendorData.companyName || 'Unknown Vendor';
-        
+
         return `${name} specializes in ${trades}. This vendor was discovered through automated market research and requires compliance verification before activation.`;
 
         /* Gemini integration temporarily disabled
