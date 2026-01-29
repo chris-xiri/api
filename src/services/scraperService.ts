@@ -19,10 +19,7 @@ export const scrapeVendors = async (zipCode: string, trade: string) => {
     const actorId = 'compass/crawler-google-places';
 
     const input = {
-        searchStrings: [`${trade} in ${zipCode}`],
-        maxCrawlerConcurrency: 1,
-        maxReviews: 0,
-        maxImages: 0,
+        searchStringsArray: [`${trade} in ${zipCode}`],
         maxCrawledPlacesPerSearch: 3,
     };
 
