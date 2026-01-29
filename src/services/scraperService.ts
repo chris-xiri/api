@@ -52,6 +52,7 @@ export const scrapeVendors = async (zipCode: string, trade: string) => {
                     },
                     website: website,
                     phone: item.phone || undefined,
+                    email: item.email || undefined,
                 };
 
                 // AI summary with a fallback to avoid hanging

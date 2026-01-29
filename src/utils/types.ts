@@ -11,6 +11,7 @@ export interface Vendor {
     ownerId?: string;
     website?: string;
     phone?: string;
+    email?: string;
 }
 
 export interface Client {
