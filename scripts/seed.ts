@@ -1,3 +1,8 @@
+import path from 'path';
+import dotenv from 'dotenv';
+// Load .env before anything else
+dotenv.config({ path: path.join(__dirname, '..', '.env') });
+
 import { db, auth } from '../src/config/firebase';
 
 async function seed() {

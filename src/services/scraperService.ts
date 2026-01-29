@@ -20,58 +20,48 @@ export const scrapeVendors = async (zipCode: string, trade: string) => {
 
     const input = {
         searchStrings: [`${trade} in ${zipCode}`],
-        maxCrawlerConcurrency: 1, // Be polite
+        maxCrawlerConcurrency: 1,
         maxReviews: 0,
         maxImages: 0,
-        maxCrawledPlacesPerSearch: 10, // Limit for demo
+        maxCrawledPlacesPerSearch: 3, // Reduced for Vercel free tier timeout (10s)
     };
 
     try {
-        // Run the actor
+        console.log(`Starting Apify run for: ${trade} in ${zipCode}`);
         const run = await apifyClient.actor(actorId).call(input);
         const { defaultDatasetId } = run;
         const { items } = await apifyClient.dataset(defaultDatasetId).listItems();
 
         const newVendors: Vendor[] = [];
 
-        // Process items
-        // Using for...of loop to handle async Gemini calls sequentially to avoid rate limits if needed, 
-        // or Promise.all for speed. sticking to Promise.all with some mapped logic.
+        for (const item of items) {
+            try {
+                if (!item.title) continue;
 
-        const processingPromises = items.map(async (item: any) => {
-            // Filter for basic validity
-            if (!item.title) return;
+                const vendorData: Vendor = {
+                    companyName: item.title,
+                    trades: [trade],
+                    status: 'Raw Lead',
+                    compliance: {
+                        coiExpiry: new Date().toISOString(),
+                        w9OnFile: false,
+                    },
+                };
 
-            const vendorData: Vendor = {
-                companyName: item.title,
-                trades: [trade],
-                status: 'Raw Lead',
-                compliance: {
-                    coiExpiry: new Date(0), // Placeholder
-                    w9OnFile: false,
-                },
-                // We can extract address etc if needed, but schema didn't explicitly ask for address in Vendor, 
-                // though it's useful. "vendors" collection schema: companyName, trades, status, compliance, aiContextSummary.
-                // I will add address to the summary or check if I should add it to doc. 
-                // The schema in prompt implies distinct Locations for clients, but Vendors might just need basic info.
-            };
+                const summary = await summarizeVendor({
+                    companyName: vendorData.companyName,
+                    trades: vendorData.trades,
+                    address: item.address,
+                    phone: item.phone,
+                    rating: item.totalScore,
+                }).catch(() => "Summary generation failed.");
 
-            // Generate AI Summary
-            const summary = await summarizeVendor({
-                companyName: vendorData.companyName,
-                trades: vendorData.trades,
-                // Add more context for AI if available in scraped data like phone, address, rating
-                // @ts-ignore - temporary for extra data passing to AI
-                address: item.address,
-                phone: item.phone,
-                rating: item.totalScore,
-            });
-
-            vendorData.aiContextSummary = summary;
-            newVendors.push(vendorData);
-        });
-
-        await Promise.all(processingPromises);
+                vendorData.aiContextSummary = summary;
+                newVendors.push(vendorData);
+            } catch (err) {
+                console.error('Error processing item:', err);
+            }
+        }
 
         // Batch write to Firestore
         const batch = db.batch();
