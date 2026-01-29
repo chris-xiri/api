@@ -15,6 +15,14 @@ export const summarizeVendor = async (vendorData: Partial<Vendor>): Promise<stri
             return 'AI Summary unavailable: API Key missing.';
         }
 
+        // Temporarily disabled due to API compatibility issues
+        // Return a basic summary based on available data
+        const trades = vendorData.trades?.join(', ') || 'General Services';
+        const name = vendorData.companyName || 'Unknown Vendor';
+        
+        return `${name} specializes in ${trades}. This vendor was discovered through automated market research and requires compliance verification before activation.`;
+
+        /* Gemini integration temporarily disabled
         const prompt = `
       You are a facility management expert. 
       Please summarize the following vendor profile into a single, professional paragraph suitable for a facility manager to review.
@@ -29,6 +37,7 @@ export const summarizeVendor = async (vendorData: Partial<Vendor>): Promise<stri
         const text = response.text();
 
         return text;
+        */
     } catch (error) {
         console.error('Error in summarizeVendor:', error);
         return 'Error generating AI summary.';

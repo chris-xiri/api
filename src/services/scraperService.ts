@@ -20,7 +20,7 @@ export const scrapeVendors = async (zipCode: string, trade: string) => {
 
     const input = {
         searchStringsArray: [`${trade} in ${zipCode}`],
-        maxCrawledPlacesPerSearch: 3,
+        maxCrawledPlacesPerSearch: 10,
     };
 
     try {
