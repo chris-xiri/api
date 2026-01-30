@@ -174,7 +174,7 @@ export const draftOutreachEmail = async (vendor: Vendor, type: 'initial' | 'foll
     try {
         const result = await model.generateContent({
             contents: [{ role: 'user', parts: [{ text: prompt }] }],
-            generationConfig: { responseMimeType: "application/json" }
+            generationConfig: { responseMimeType: "application/json" } as any
         });
         const text = result.response.text();
         return JSON.parse(text);
@@ -226,7 +226,7 @@ export const draftResponseEmail = async (vendor: Vendor, incomingMessage: string
     try {
         const result = await model.generateContent({
             contents: [{ role: 'user', parts: [{ text: prompt }] }],
-            generationConfig: { responseMimeType: "application/json" }
+            generationConfig: { responseMimeType: "application/json" } as any
         });
         const text = result.response.text();
         return JSON.parse(text);

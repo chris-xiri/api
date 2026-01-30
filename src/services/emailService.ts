@@ -38,67 +38,85 @@ interface EmailTemplate {
 }
 
 const getFooter = (vendor: Vendor) => `
-        <div style="margin-top: 30px; font-size: 12px; color: #999; border-top: 1px solid #eee; padding-top: 10px;">
-            <p>Xiri Facility Solutions | [Address]</p>
-            <p>
-                <a href="${process.env.API_URL || 'http://localhost:3000/api'}/vendors/${vendor.id}/unsubscribe" style="color: #999;">Unsubscribe / Darse de baja</a>
-            </p>
-        </div>
-    `;
-
-// Helper for dynamic greetings
-const getFirstName = (vendor: Vendor) => vendor.name?.split(' ')[0] || 'Partner';
+    <div style="margin-top: 30px; font-size: 12px; color: #999; border-top: 1px solid #eee; padding-top: 10px;">
+        <p>Xiri Facility Solutions | Vendor Management Team</p>
+        <p><a href="${process.env.VITE_API_URL || 'http://localhost:3000/api'}/vendors/${vendor.id}/unsubscribe" style="color: #999;">Unsubscribe</a></p>
+    </div>
+`;
 
 import { draftOutreachEmail, draftResponseEmail } from './geminiService';
 
-export const sendEmail = async (vendor: Vendor, templateKey: string) => {
-    // Map existing template keys to AI drafting types
-    const type = templateKey === 'initial_outreach' ? 'initial' : 'follow_up';
-
-    console.log(`Drafting AI email (${type}) for ${vendor.name}...`);
-    const { subject, body } = await draftOutreachEmail(vendor, type);
-
-    const recipient = FORCE_TEST_MODE ? TEST_RECIPIENT : (vendor.email || TEST_RECIPIENT);
-    const finalSubject = subject + (FORCE_TEST_MODE ? ` [TEST to: ${vendor.email}]` : '');
-
-    console.log(`Sending AI-drafted email to ${recipient}...`);
-
+/**
+ * Sends an AI-generated outreach email (Initial or Follow-up)
+ */
+export const sendOutreachEmail = async (vendor: Vendor, type: 'initial' | 'follow_up') => {
     try {
-        const info = await transporter.sendMail({
-            from: SENDER_IDENTITY,
-            replyTo: MAIL_FROM_ADDRESS,
-            to: recipient,
-            subject: finalSubject,
-            html: body,
-        });
-        console.log(`Email sent: ${info.messageId}`);
-        return { success: true, messageId: info.messageId };
+        console.log(`[AI Agent] Drafting ${type} email for ${vendor.name}...`);
+        const draft = await draftOutreachEmail(vendor, type);
+
+        const fullHtml = `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; color: #333;">
+                ${draft.body}
+                ${getFooter(vendor)}
+            </div>
+        `;
+
+        return await sendRawEmail(vendor, draft.subject, fullHtml);
     } catch (error) {
-        console.error('Error sending email:', error);
+        console.error('Failed to send outreach email:', error);
         throw error;
     }
 };
 
 /**
- * Sends an interactive AI-generated response to an incoming vendor message.
+ * Sends an AI-generated reply to an incoming vendor message
  */
-export const sendResponseEmail = async (vendor: Vendor, incomingMessage: string) => {
-    console.log(`Drafting AI response for ${vendor.name}...`);
-    const { subject, body } = await draftResponseEmail(vendor, incomingMessage);
+export const sendAiReply = async (vendor: Vendor, incomingMessage: string) => {
+    try {
+        console.log(`[AI Agent] Analyzing reply from ${vendor.name}...`);
+        const draft = await draftResponseEmail(vendor, incomingMessage);
 
+        const fullHtml = `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; color: #333;">
+                ${draft.body}
+                ${getFooter(vendor)}
+            </div>
+        `;
+
+        return await sendRawEmail(vendor, draft.subject, fullHtml);
+    } catch (error) {
+        console.error('Failed to send AI reply:', error);
+        throw error;
+    }
+};
+
+/**
+ * Compatibility wrapper for existing services (Legacy)
+ */
+export const sendEmail = async (vendor: Vendor, templateKey: string) => {
+    const type = templateKey === 'initial_outreach' ? 'initial' : 'follow_up';
+    return sendOutreachEmail(vendor, type);
+};
+
+/**
+ * Internal helper to handle the actual SMTP transport
+ */
+const sendRawEmail = async (vendor: Vendor, subject: string, html: string) => {
     const recipient = FORCE_TEST_MODE ? TEST_RECIPIENT : (vendor.email || TEST_RECIPIENT);
+    const finalSubject = subject + (FORCE_TEST_MODE ? ` [TEST: ${vendor.name}]` : '');
 
     try {
         const info = await transporter.sendMail({
-            from: SENDER_IDENTITY,
+            from: `"Xiri Vendor Team" <${MAIL_FROM_ADDRESS}>`,
             replyTo: MAIL_FROM_ADDRESS,
             to: recipient,
-            subject: subject,
-            html: body,
+            subject: finalSubject,
+            html: html,
         });
+        console.log(`Email sent: ${info.messageId}`);
         return { success: true, messageId: info.messageId };
     } catch (error) {
-        console.error('Error sending response email:', error);
+        console.error('Transporter Error:', error);
         throw error;
     }
 };
