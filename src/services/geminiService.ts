@@ -149,20 +149,62 @@ export const generateDeepVendorSummary = async (companyName: string, location: s
  * Generates a cold outreach email tailored to the vendor's specific trade and location.
  */
 export const draftOutreachEmail = async (vendor: Vendor, type: 'initial' | 'follow_up'): Promise<{ subject: string; body: string }> => {
+    // For 'initial', we use the requested high-conversion template
+    if (type === 'initial') {
+        const firstName = vendor.name?.split(' ')[0] || 'Partner';
+        const trade = vendor.trades?.[0] || 'commercial services';
+        const city = vendor.address?.city || 'your area';
+
+        // We use AI just to generate a professional subject and the specific context for the trade
+        const contextPrompt = `
+            Task: Provide a 1-sentence specific context for this trade: "${trade}" in "${city}".
+            Example for Cleaning: "medical offices and retail spaces"
+            Example for HVAC: "preventative maintenance for rooftop units"
+            Return ONLY the phrase, no other text.
+            NEVER wrap in quotes.
+        `;
+
+        let tradeContext = trade;
+        let subject = `Commercial ${trade} Contracts - No Bidding Required`;
+
+        try {
+            const result = await model.generateContent(contextPrompt);
+            tradeContext = result.response.text().trim().replace(/"/g, '') || trade;
+        } catch (e) {
+            console.warn("AI failed to generate trade context, using default.");
+        }
+
+        return {
+            subject,
+            body: `
+                <p>Hi ${firstName},</p>
+                <p>I'm reaching out because Xiri Facility Solutions manages facilities in your area, and we need a reliable partner for <strong>${trade} of ${tradeContext}</strong>.</p>
+                <p>Unlike lead-gen sites, we are the direct facility manager. We don't sell you leads. <strong>We assign you contracts.</strong></p>
+                <p><strong>Why contractors work with Xiri:</strong></p>
+                <ul>
+                    <li><strong>Zero Admin:</strong> We handle the sales, customer service, and billing.</li>
+                    <li><strong>Guaranteed Payment:</strong> You invoice us directly, not the tenant. We pay on time, every time.</li>
+                    <li><strong>High-Quality Sites:</strong> Single-tenant commercial spaces that respect your time.</li>
+                </ul>
+                <p>Are you open to taking on new commercial accounts this month?</p>
+            `
+        };
+    }
+
+    // For 'follow_up', we use the AI agent to be context-aware
     const prompt = `
         ${EMAIL_SYSTEM_PROMPT}
 
-        TASK: Draft an email to a potential vendor.
+        TASK: Draft a short follow-up email to a potential vendor.
         
         VENDOR CONTEXT:
         Name: ${vendor.name}
         Trade: ${vendor.trades?.[0] || 'Commercial Services'}
         Location: ${vendor.address?.city || 'the area'}
-        Type: ${type} (If 'initial', introduce Xiri. If 'follow_up', ask if they got the last note).
 
         REQUIREMENT:
-        - If 'initial', explain we have active sites in their area and need a local partner. Distinctly explain we are NOT selling leads.
-        - If 'follow_up', keep it very short (2 sentences max). "Just bubbling this up."
+        - Keep it very short (2 sentences max). 
+        - "Just bubbling this up" or "Checking if you got my last note about the contracts in ${vendor.address?.city || 'your area'}."
         
         OUTPUT FORMAT (JSON only):
         {
@@ -180,10 +222,9 @@ export const draftOutreachEmail = async (vendor: Vendor, type: 'initial' | 'foll
         return JSON.parse(text);
     } catch (error) {
         console.error('Error drafting outreach email:', error);
-        // Fallback if AI fails
         return {
-            subject: `Contract Opportunity: ${vendor.name}`,
-            body: `<p>Hi ${vendor.name}, are you taking on new commercial work orders in ${vendor.address?.city || 'the area'}? We handle all administrative tasks so you can focus on the jobs.</p>`
+            subject: `One quick question: ${vendor.name}`,
+            body: `<p>Hi ${vendor.name}, just checking if you saw my previous note about assigning commercial contracts in your area. Thanks!</p>`
         };
     }
 };
