@@ -94,11 +94,130 @@ const runGoogleMapsScraper = async (searchStrings: string[], trade?: string): Pr
     return results.filter((l): l is RawLead => l !== null);
 };
 
+/**
+ * Run the Yellow Pages Scraper and format as RawLead
+ */
+const runYellowPagesScraper = async (zipCode: string, trade: string): Promise<RawLead[]> => {
+    if (!process.env.APIFY_API_TOKEN) {
+        throw new Error('APIFY_API_TOKEN is missing');
+    }
+
+    const actorId = 'trudax/yellow-pages-us-scraper';
+    const input = {
+        search: trade,
+        location: zipCode,
+        maxItems: 3,
+    };
+
+    console.log(`Starting Yellow Pages run for: ${trade} in ${zipCode}`);
+    try {
+        const run = await apifyClient.actor(actorId).call(input);
+        const { defaultDatasetId } = run;
+        const { items } = await apifyClient.dataset(defaultDatasetId).listItems();
+
+        return (items as any[]).map(item => ({
+            companyName: item.name || item.title,
+            website: item.website,
+            phone: item.phone,
+            email: item.email,
+            address: item.address,
+            source: 'yellow_pages' as const,
+            scrapedAt: new Date().toISOString(),
+            trades: [trade],
+        })).filter(l => l.companyName && (l.website || l.phone));
+    } catch (err) {
+        console.error('Yellow Pages scraper failed:', err);
+        return [];
+    }
+};
+
+/**
+ * Normalizes a URL for comparison (removes protocol, www, and trailing slash)
+ */
+const normalizeUrl = (url?: string): string => {
+    if (!url) return '';
+    return url.replace(/^(https?:\/\/)?(www\.)?/, '').replace(/\/$/, '').toLowerCase();
+};
+
+/**
+ * Normalizes a phone number for comparison (keeps only digits)
+ */
+const normalizePhone = (phone?: string): string => {
+    if (!phone) return '';
+    return phone.replace(/\D/g, '');
+};
+
+/**
+ * Merges leads from multiple sources and cross-references them
+ */
+const mergeAndCrossReference = (gMapsLeads: RawLead[], yPagesLeads: RawLead[]): RawLead[] => {
+    const mergedMap = new Map<string, RawLead>();
+
+    // Process Google Maps leads first (baseline)
+    gMapsLeads.forEach(lead => {
+        const key = normalizeUrl(lead.website) || normalizePhone(lead.phone);
+        if (key) {
+            lead.confidenceScore = 1;
+            mergedMap.set(key, lead);
+        }
+    });
+
+    // Merge Yellow Pages leads
+    yPagesLeads.forEach(yLead => {
+        const key = normalizeUrl(yLead.website) || normalizePhone(yLead.phone);
+        if (!key) return;
+
+        if (mergedMap.has(key)) {
+            const existing = mergedMap.get(key)!;
+            // Update confidence
+            existing.confidenceScore = 2;
+            existing.source = 'multi_source' as const;
+
+            // Enrich details
+            if (!existing.email && yLead.email) existing.email = yLead.email;
+            if (!existing.phone && yLead.phone) existing.phone = yLead.phone;
+            if (!existing.website && yLead.website) existing.website = yLead.website;
+        } else {
+            yLead.confidenceScore = 1;
+            mergedMap.set(key, yLead);
+        }
+    });
+
+    return Array.from(mergedMap.values());
+};
+
 export const scrapeVendors = async (zipCode: string, trade: string): Promise<RawLead[]> => {
-    return runGoogleMapsScraper([`${trade} in ${zipCode}`], trade);
+    console.log(`Scraping vendors for ${trade} in ${zipCode}...`);
+
+    // Run scrapers in parallel
+    const [gMapsLeads, yPagesLeads] = await Promise.all([
+        runGoogleMapsScraper([`${trade} in ${zipCode}`], trade),
+        runYellowPagesScraper(zipCode, trade)
+    ]);
+
+    const finalLeads = mergeAndCrossReference(gMapsLeads, yPagesLeads);
+
+    // Add AI Summaries for merged leads that don't have one 
+    // (Note: runGoogleMapsScraper already does it for its leads, but merged YP leads might need it)
+    const enrichedLeads = await Promise.all(finalLeads.map(async (lead) => {
+        if (!lead.aiSummary) {
+            lead.aiSummary = await summarizeVendor({
+                companyName: lead.companyName,
+                trades: lead.trades,
+                website: lead.website,
+                phone: lead.phone,
+                address: lead.address,
+                rating: lead.rating
+            } as any).catch(() => "Summary generation failed.");
+        }
+        return lead;
+    }));
+
+    return enrichedLeads;
 };
 
 export const scrapeProspects = async (zipCode: string, query: string): Promise<RawLead[]> => {
-    // e.g. "Property Management companies in 90210"
-    return runGoogleMapsScraper([`${query} in ${zipCode}`]);
+    // Prospects still use Google Maps primarily
+    const leads = await runGoogleMapsScraper([`${query} in ${zipCode}`]);
+    return leads.map(l => ({ ...l, confidenceScore: 1 }));
 };
