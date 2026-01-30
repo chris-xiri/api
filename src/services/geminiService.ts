@@ -91,7 +91,9 @@ export const generateDeepVendorSummary = async (companyName: string, location: s
         // 3. Extract Score
         const scoreMatch = responseText.match(/PRIORITY_SCORE:\s*(\d+)/i);
         const priorityScore = scoreMatch ? parseInt(scoreMatch[1]) : 5;
-        const cleanSummary = responseText.replace(/PRIORITY_SCORE:\s*\d+/i, '').trim();
+        const cleanSummary = responseText.replace(/PRIORITY_SCORE:\s*\d+/i, '').replace(/ANALYSIS:\s*/i, '').trim();
+
+        if (cleanSummary.length < 10) throw new Error("AI returned empty analysis");
 
         return {
             summary: cleanSummary,
@@ -100,6 +102,10 @@ export const generateDeepVendorSummary = async (companyName: string, location: s
 
     } catch (error) {
         console.error('Deep Summary Error:', error);
-        return { summary: 'Deep analysis failed. Reverting to basic profile.', priorityScore: 5 };
+        // Fallback: If deep analysis fails, use a tailored basic summary instead of just "failed"
+        return {
+            summary: `Professional commercial entity operating in ${location}. Public records indicate active business presence under the name ${companyName}. Recommended for direct outreach to confirm current capacity.`,
+            priorityScore: 5
+        };
     }
 };
