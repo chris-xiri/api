@@ -13,7 +13,8 @@ const SMTP_PASS = process.env.SMTP_PASS;
 // Safety Controls
 const FORCE_TEST_MODE = true; // Always send to test address for now
 const TEST_RECIPIENT = 'clungz@gmail.com';
-const SENDER_IDENTITY = '"Xiri Recruitment" <ic-recruiter@xiri.ai>';
+const MAIL_FROM_ADDRESS = process.env.MAIL_FROM_ADDRESS || 'ic-recruiter@xiri.ai';
+const SENDER_IDENTITY = `"Xiri Facility Solutions Recruitment Team" <${MAIL_FROM_ADDRESS}>`;
 
 const transporter = nodemailer.createTransport({
     host: SMTP_HOST,
@@ -53,7 +54,7 @@ const templates: Record<string, EmailTemplate> = {
                 <p>Are you taking on new commercial clients right now?</p>
                 
                 <p>Best regards,</p>
-                <p><strong>Xiri Recruitment Team</strong><br>ic-recruiter@xiri.ai</p>
+                <p><strong>Xiri Facility Solutions Recruitment Team</strong><br>${MAIL_FROM_ADDRESS}</p>
                 
                 <hr style="margin: 20px 0; border: 0; border-top: 1px solid #eee;" />
                 
@@ -68,7 +69,7 @@ const templates: Record<string, EmailTemplate> = {
                 <p>¿Está aceptando nuevos clientes comerciales en este momento?</p>
                 
                 <p>Saludos cordiales,</p>
-                <p><strong>Equipo de Reclutamiento Xiri</strong></p>
+                <p><strong>Equipo de Reclutamiento de Xiri Facility Solutions</strong></p>
 
                 ${getFooter(vendor)}
             </div>
@@ -85,7 +86,7 @@ const templates: Record<string, EmailTemplate> = {
                 <p>Let me know if you have 5 minutes to chat this week.</p>
                 
                 <p>Thanks,</p>
-                <p><strong>Xiri Recruitment Team</strong></p>
+                <p><strong>Xiri Facility Solutions Recruitment Team</strong></p>
                 
                 <hr style="margin: 20px 0; border: 0; border-top: 1px solid #eee;" />
                 
@@ -98,7 +99,7 @@ const templates: Record<string, EmailTemplate> = {
                 <p>Avíseme si tiene 5 minutos para conversar esta semana.</p>
                 
                 <p>Gracias,</p>
-                <p><strong>Equipo de Reclutamiento Xiri</strong></p>
+                <p><strong>Equipo de Reclutamiento de Xiri Facility Solutions</strong></p>
 
                 ${getFooter(vendor)}
             </div>
@@ -115,7 +116,7 @@ const templates: Record<string, EmailTemplate> = {
                 <p>If you have capacity in the future, please feel free to reach out. We are always looking for quality ${vendor.trades?.[0] || 'service'} providers.</p>
                 
                 <p>All the best,</p>
-                <p><strong>Xiri Recruitment Team</strong></p>
+                <p><strong>Xiri Facility Solutions Recruitment Team</strong></p>
                 
                 <hr style="margin: 20px 0; border: 0; border-top: 1px solid #eee;" />
                 
@@ -128,7 +129,7 @@ const templates: Record<string, EmailTemplate> = {
                 <p>Si tienen capacidad en el futuro, no duden en contactarnos. Siempre estamos buscando proveedores de calidad.</p>
                 
                 <p>Saludos,</p>
-                <p><strong>Equipo de Reclutamiento Xiri</strong></p>
+                <p><strong>Equipo de Reclutamiento de Xiri Facility Solutions</strong></p>
 
                 ${getFooter(vendor)}
             </div>
@@ -149,6 +150,7 @@ export const sendEmail = async (vendor: Vendor, templateKey: string) => {
     try {
         const info = await transporter.sendMail({
             from: SENDER_IDENTITY,
+            replyTo: MAIL_FROM_ADDRESS,
             to: recipient,
             subject: subject,
             html: html,
