@@ -26,19 +26,32 @@ interface ApifyPlaceItem {
 /**
  * Shared helper to run the Google Maps Scraper and format as RawLead
  */
-const runGoogleMapsScraper = async (searchStrings: string[], trade?: string): Promise<RawLead[]> => {
+const runGoogleMapsScraper = async (
+    searchStrings: string[],
+    trade?: string,
+    radiusMiles: number = 10,
+    locationName?: string
+): Promise<RawLead[]> => {
     if (!process.env.APIFY_API_TOKEN) {
         throw new Error('APIFY_API_TOKEN is missing');
     }
 
     const actorId = 'compass/crawler-google-places';
 
-    const input = {
+    // Base input
+    const input: any = {
         searchStringsArray: searchStrings,
-        maxCrawledPlacesPerSearch: 3,
+        maxCrawledPlacesPerSearch: 10, // Increased for better results
     };
 
-    console.log(`Starting Apify run for: ${searchStrings.join(', ')}`);
+    // If we have a location name, we specify radius if supported by the actor
+    // The compass/crawler-google-places actor uses 'radiusMeters'
+    // 1 mile ~ 1609 meters
+    if (radiusMiles) {
+        input.radiusMeters = Math.round(radiusMiles * 1609);
+    }
+
+    console.log(`Starting Apify run for: ${searchStrings.join(', ')} with radius ${radiusMiles} miles`);
     const run = await apifyClient.actor(actorId).call(input);
     const { defaultDatasetId } = run;
     const { items } = await apifyClient.dataset(defaultDatasetId).listItems();
@@ -188,13 +201,16 @@ const mergeAndCrossReference = (gMapsLeads: RawLead[], yPagesLeads: RawLead[]): 
     return Array.from(mergedMap.values());
 };
 
-export const scrapeVendors = async (zipCode: string, trade: string): Promise<RawLead[]> => {
-    console.log(`Scraping vendors for ${trade} in ${zipCode}...`);
+export const scrapeVendors = async (location: string, trade: string, radius: number = 10): Promise<RawLead[]> => {
+    console.log(`Scraping vendors for ${trade} in ${location} within ${radius} miles...`);
 
     // Run scrapers in parallel
+    // Yellow Pages is mostly zip-based, so we try to use it if location looks like a zip
+    const isZip = /^\d{5}(-\d{4})?$/.test(location.trim());
+
     const [gMapsLeads, yPagesLeads] = await Promise.all([
-        runGoogleMapsScraper([`${trade} in ${zipCode}`], trade),
-        runYellowPagesScraper(zipCode, trade)
+        runGoogleMapsScraper([`${trade} near ${location}`], trade, radius, location),
+        isZip ? runYellowPagesScraper(location, trade) : Promise.resolve([])
     ]);
 
     const finalLeads = mergeAndCrossReference(gMapsLeads, yPagesLeads);
@@ -202,12 +218,10 @@ export const scrapeVendors = async (zipCode: string, trade: string): Promise<Raw
     // Add Deep AI Summaries for merged leads
     const enrichedLeads = await Promise.all(finalLeads.map(async (lead) => {
         try {
-            const location = lead.address || zipCode;
-            const { summary, priorityScore } = await generateDeepVendorSummary(lead.companyName, location);
+            const searchLocation = lead.address || location;
+            const { summary, priorityScore } = await generateDeepVendorSummary(lead.companyName, searchLocation);
 
             lead.aiSummary = summary;
-            // Store priority score if we want to expose it specifically, 
-            // otherwise factor it into confidence/rating
             lead.confidenceScore = (lead.confidenceScore || 1) + (priorityScore / 10);
         } catch (err) {
             console.error('Deep Enrichment failed for:', lead.companyName, err);

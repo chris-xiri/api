@@ -4,14 +4,15 @@ import { performAutomatedVetting } from '../services/vettingService';
 
 export const scrapeVendorsHandler = async (req: Request, res: Response) => {
     try {
-        const { zipCode, trade } = req.body;
+        const { zipCode, location, trade, radius } = req.body;
+        const searchLocation = location || zipCode;
 
-        if (!zipCode || !trade) {
-            return res.status(400).json({ error: 'zipCode and trade are required' });
+        if (!searchLocation || !trade) {
+            return res.status(400).json({ error: 'location (or zipCode) and trade are required' });
         }
 
         const [scrapedVendors, existingAccounts] = await Promise.all([
-            scrapeVendors(zipCode, trade),
+            scrapeVendors(searchLocation, trade, radius || 10),
             getAccounts('vendor')
         ]);
 
@@ -144,5 +145,39 @@ export const getVendorsHandler = async (req: Request, res: Response) => {
     } catch (error) {
         console.error('Error in getVendorsHandler:', error);
         return res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+import { GoogleGenerativeAI } from '@google/generative-ai';
+
+export const getLocationSuggestionsHandler = async (req: Request, res: Response) => {
+    try {
+        const { query } = req.query;
+        if (!query || typeof query !== 'string') {
+            return res.status(400).json({ error: 'Query is required' });
+        }
+
+        const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+        const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' }); // Use faster model for autocomplete
+
+        const prompt = `
+            Act as a location autocomplete engine. Given the partial user input "${query}", 
+            return exactly 5 real-world location suggestions (City, State, or notable addresses/zip codes).
+            Focus on US commercial hubs.
+            Return ONLY a JSON array of strings, no other text.
+            Example: ["New York, NY", "Newark, NJ", "New Haven, CT"]
+        `;
+
+        const result = await model.generateContent(prompt);
+        const text = result.response.text().trim();
+
+        // Cleanup markdown if AI wraps it
+        const jsonMatch = text.match(/\[.*\]/s);
+        const suggestions = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
+
+        return res.status(200).json({ data: suggestions });
+    } catch (error) {
+        console.error('Error in getLocationSuggestionsHandler:', error);
+        return res.status(200).json({ data: [] }); // Fail silently for autocomplete
     }
 };
