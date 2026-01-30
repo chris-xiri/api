@@ -57,6 +57,36 @@ export const updateVendorHandler = async (req: Request, res: Response) => {
     }
 };
 
+export const createVendorHandler = async (req: Request, res: Response) => {
+    try {
+        const vendorData = req.body;
+
+        if (!vendorData.name) {
+            return res.status(400).json({ error: 'Vendor name is required' });
+        }
+
+        // Add metadata
+        const newVendor = {
+            ...vendorData,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            type: 'vendor' // enforce type
+        };
+
+        const docRef = await db.collection('accounts').add(newVendor);
+
+        return res.status(201).json({
+            message: 'Vendor created successfully',
+            id: docRef.id,
+            ...newVendor
+        });
+
+    } catch (error) {
+        console.error('Error in createVendorHandler:', error);
+        return res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
 export const importLeadsHandler = async (req: Request, res: Response) => {
     try {
         const { leads, type, ownerId, status } = req.body; // type: 'vendor' | 'prospect'
