@@ -22,6 +22,25 @@ Xiri Recruitment Strategy Pillars:
 3. The "Compliance Gate": Documents like COI/W9 are the "keys" to unlocking active sites and revenue, not just "paperwork".
 `;
 
+// --- HELPER: System Instructions for Email Tone & Policy ---
+const EMAIL_SYSTEM_PROMPT = `
+    You are "Chris", a Vendor Manager at Xiri Facility Solutions. 
+    TONE: Professional, direct, low-friction. You are assigning work, not selling a subscription.
+    
+    KEY FACTS ABOUT XIRI (Use these to answer questions):
+    1. We are a Facility Management company, NOT a lead-gen site.
+    2. We pay vendors directly (Net 30 standard, Net 15 available).
+    3. We handle all admin/billing with the client.
+    4. We require a W-9 and Certificate of Insurance (COI) to assign the first job.
+    
+    ${STRATEGY_CONTEXT}
+
+    NEVER: 
+    - Never sound like a marketing bot.
+    - Never use flowery language like "unlock your potential."
+    - Never apologize for emailing them.
+`;
+
 export const summarizeVendor = async (vendorData: Partial<Vendor>): Promise<string> => {
     try {
         if (!process.env.GEMINI_API_KEY) {
@@ -119,47 +138,103 @@ export const generateDeepVendorSummary = async (companyName: string, location: s
         // Fallback: Use Recruiter-focused terminology even in fallback
         return {
             summary: `Professional commercial entity in ${location}. Profile suggests strong potential for Direct Work Order assignments. Recommended for outreach following the 'Zero Admin' value proposition.`,
-            priorityScore: 5 - 5
+            priorityScore: 5
+        };
+    }
+};
+
+// --- AI EMAIL GENERATION ---
+
+/**
+ * Generates a cold outreach email tailored to the vendor's specific trade and location.
+ */
+export const draftOutreachEmail = async (vendor: Vendor, type: 'initial' | 'follow_up'): Promise<{ subject: string; body: string }> => {
+    const prompt = `
+        ${EMAIL_SYSTEM_PROMPT}
+
+        TASK: Draft an email to a potential vendor.
+        
+        VENDOR CONTEXT:
+        Name: ${vendor.name}
+        Trade: ${vendor.trades?.[0] || 'Commercial Services'}
+        Location: ${vendor.address?.city || 'the area'}
+        Type: ${type} (If 'initial', introduce Xiri. If 'follow_up', ask if they got the last note).
+
+        REQUIREMENT:
+        - If 'initial', explain we have active sites in their area and need a local partner. Distinctly explain we are NOT selling leads.
+        - If 'follow_up', keep it very short (2 sentences max). "Just bubbling this up."
+        
+        OUTPUT FORMAT (JSON only):
+        {
+            "subject": "The email subject line",
+            "body": "The HTML body content (use <p> tags, keep it clean)"
+        }
+    `;
+
+    try {
+        const result = await model.generateContent({
+            contents: [{ role: 'user', parts: [{ text: prompt }] }],
+            generationConfig: { responseMimeType: "application/json" }
+        });
+        const text = result.response.text();
+        return JSON.parse(text);
+    } catch (error) {
+        console.error('Error drafting outreach email:', error);
+        // Fallback if AI fails
+        return {
+            subject: `Contract Opportunity: ${vendor.name}`,
+            body: `<p>Hi ${vendor.name}, are you taking on new commercial work orders in ${vendor.address?.city || 'the area'}? We handle all administrative tasks so you can focus on the jobs.</p>`
         };
     }
 };
 
 /**
- * Generates a hyper-personalized recruitment email based on Xiri Strategy
+ * Analyzes an incoming email from a vendor and drafts a reply based on their compliance status.
  */
-export const generateDynamicRecruiterEmail = async (vendor: Vendor, stage: 'initial' | 'followup' | 'onboarding'): Promise<{ subject: string; body: string }> => {
+export const draftResponseEmail = async (vendor: Vendor, incomingMessage: string): Promise<{ subject: string; body: string }> => {
+    // Determine what is missing
+    const missingItems = [];
+    if (!vendor.compliance?.w9OnFile) missingItems.push("Form W-9");
+    if (!vendor.compliance?.insuranceVerified) missingItems.push("Certificate of Insurance (COI) with General Liability");
+
     const prompt = `
-        ${STRATEGY_CONTEXT}
-        
-        You are a Xiri Vendor Manager. Generate a personalized email for:
-        Company: ${vendor.name}
-        Trade: ${vendor.trades?.[0] || 'maintenance'}
-        Location: ${vendor.address?.fullNumber || 'their territory'}
-        Summary Context: ${vendor.aiContextSummary || ''}
+        ${EMAIL_SYSTEM_PROMPT}
 
-        STAGE: ${stage}
-
-        CONSTRAINTS:
-        - NEVER sound like a lead-gen site.
-        - Emphasize "Direct Assignment" (Zero Bidding).
-        - Emphasize "Zero Admin" (We handle billing).
-        - If 'onboarding', frame COI/W9 as the "Key" to unlock revenue.
-        - Keep it short, professional, and high-status.
+        TASK: Draft a reply to this vendor's incoming email.
         
-        OUTPUT FORMAT (JSON):
+        VENDOR STATUS:
+        Name: ${vendor.name}
+        Trade: ${vendor.trades?.[0]}
+        Missing Compliance Items: ${missingItems.length > 0 ? missingItems.join(', ') : 'None - Fully Compliant'}
+        
+        INCOMING MESSAGE FROM VENDOR:
+        "${incomingMessage}"
+
+        INSTRUCTIONS:
+        1. Answer their specific questions directly (e.g., about payment, location, job type).
+        2. If they seem interested/positive, YOU MUST ask for the missing compliance items listed above.
+        3. If they are fully compliant, propose a 10-minute onboarding call.
+        4. If they are not interested, be polite and close the file.
+
+        OUTPUT FORMAT (JSON only):
         {
-            "subject": "...",
-            "body": "..." (HTML formatted)
+            "subject": "Re: [Their Subject] (or a new relevant subject)",
+            "body": "The HTML body content"
         }
     `;
 
     try {
-        const result = await model.generateContent(prompt);
+        const result = await model.generateContent({
+            contents: [{ role: 'user', parts: [{ text: prompt }] }],
+            generationConfig: { responseMimeType: "application/json" }
+        });
         const text = result.response.text();
-        const jsonMatch = text.match(/\{.*\}/s);
-        return jsonMatch ? JSON.parse(jsonMatch[0]) : { subject: 'Partnership', body: 'Contact us for work orders.' };
+        return JSON.parse(text);
     } catch (error) {
-        console.error('Error generating dynamic email:', error);
-        return { subject: 'Direct Contracts Available', body: '<p>Contact us to discuss site assignments.</p>' };
+        console.error('Error drafting response email:', error);
+        return {
+            subject: `Re: Xiri Facility Solutions`,
+            body: `<p>Thanks for your note. To move forward with contract assignments, could you please send over your W-9 and COI?</p>`
+        };
     }
 };
