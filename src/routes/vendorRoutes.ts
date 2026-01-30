@@ -3,4 +3,9 @@ import { scrapeVendorsHandler, updateVendorHandler, importLeadsHandler, getVendo
 
 const router = Router();
 
-router.get
+router.get('/', getVendorsHandler);
+router.post('/scrape', scrapeVendorsHandler);
+router.post('/import', importLeadsHandler);
+router.put('/:id', updateVendorHandler);
+
+export default router;
