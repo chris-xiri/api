@@ -16,14 +16,20 @@ const TEST_RECIPIENT = 'clungz@gmail.com';
 const MAIL_FROM_ADDRESS = process.env.MAIL_FROM_ADDRESS || 'ic-recruiter@xiri.ai';
 const SENDER_IDENTITY = `"Xiri Facility Solutions Recruitment Team" <${MAIL_FROM_ADDRESS}>`;
 
+console.log('Initializing SMTP transporter...');
+if (!SMTP_USER || !SMTP_PASS) {
+    console.error('CRITICAL: SMTP_USER or SMTP_PASS is missing from environment variables!');
+}
+
 const transporter = nodemailer.createTransport({
-    host: SMTP_HOST,
-    port: SMTP_PORT,
-    secure: SMTP_PORT === 465,
+    service: 'gmail',
     auth: {
         user: SMTP_USER,
         pass: SMTP_PASS,
     },
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 20000,
 });
 
 interface EmailTemplate {
