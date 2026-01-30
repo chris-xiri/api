@@ -23,7 +23,9 @@ export interface Account {
     trades?: string[];
     compliance?: {
         coiExpiry: Date | string;
+        insuranceExpiry?: Date | string;
         w9OnFile: boolean;
+        w9Signed?: boolean;
         insuranceVerified?: boolean;
         isLLC?: boolean;
     };
