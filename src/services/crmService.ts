@@ -35,6 +35,10 @@ export const importAccounts = async (leads: RawLead[], type: 'prospect' | 'vendo
                 compliance: {
                     coiExpiry: new Date().toISOString(),
                     w9OnFile: false
+                },
+                outreach: {
+                    status: 'idle',
+                    step: 0
                 }
             } : {})
         };

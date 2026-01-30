@@ -70,7 +70,11 @@ export const createVendorHandler = async (req: Request, res: Response) => {
             ...vendorData,
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
-            type: 'vendor' // enforce type
+            type: 'vendor', // enforce type
+            outreach: {
+                status: 'idle',
+                step: 0
+            }
         };
 
         const docRef = await db.collection('accounts').add(newVendor);

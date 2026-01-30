@@ -32,7 +32,7 @@ export interface Account {
         lastEmailSentAt?: Date | string;
         nextEmailAt?: Date | string;
         campaignId?: string;
-        status: 'active' | 'paused' | 'completed';
+        status: 'idle' | 'active' | 'paused' | 'completed';
     };
 
     // Metadata
