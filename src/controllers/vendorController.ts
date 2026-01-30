@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { scrapeVendors } from '../services/scraperService';
+import { performAutomatedVetting } from '../services/vettingService';
 
 export const scrapeVendorsHandler = async (req: Request, res: Response) => {
     try {
@@ -46,6 +47,17 @@ export const updateVendorHandler = async (req: Request, res: Response) => {
 
         if (!id) {
             return res.status(400).json({ error: 'Vendor ID is required' });
+        }
+
+        // Trigger automated vetting if status is changing to 'Vetting'
+        if (updates.status === 'Vetting') {
+            const vendorRef = db.collection('accounts').doc(id);
+            const doc = await vendorRef.get();
+            if (doc.exists) {
+                const vendorData = doc.data();
+                // Run in background to avoid blocking the response
+                performAutomatedVetting(id, vendorData?.name, vendorData?.address?.fullNumber || '');
+            }
         }
 
         await db.collection('accounts').doc(id).update(updates);

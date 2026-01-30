@@ -121,6 +121,7 @@ const runYellowPagesScraper = async (zipCode: string, trade: string): Promise<Ra
             phone: item.phone,
             email: item.email,
             address: item.address,
+            yearEstablished: item.yearEstablished || item.established,
             source: 'yellow_pages' as const,
             scrapedAt: new Date().toISOString(),
             trades: [trade],
@@ -177,6 +178,7 @@ const mergeAndCrossReference = (gMapsLeads: RawLead[], yPagesLeads: RawLead[]): 
             if (!existing.email && yLead.email) existing.email = yLead.email;
             if (!existing.phone && yLead.phone) existing.phone = yLead.phone;
             if (!existing.website && yLead.website) existing.website = yLead.website;
+            if (!existing.yearEstablished && yLead.yearEstablished) existing.yearEstablished = yLead.yearEstablished;
         } else {
             yLead.confidenceScore = 1;
             mergedMap.set(key, yLead);
@@ -210,7 +212,14 @@ export const scrapeVendors = async (zipCode: string, trade: string): Promise<Raw
         } catch (err) {
             console.error('Deep Enrichment failed for:', lead.companyName, err);
             if (!lead.aiSummary) {
-                lead.aiSummary = await summarizeVendor(lead).catch(() => "Summary generation failed.");
+                lead.aiSummary = await summarizeVendor({
+                    name: lead.companyName,
+                    trades: lead.trades,
+                    website: lead.website,
+                    phone: lead.phone,
+                    address: { fullNumber: lead.address },
+                    rating: lead.rating
+                } as any).catch(() => "Summary generation failed.");
             }
         }
         return lead;
@@ -223,4 +232,42 @@ export const scrapeProspects = async (zipCode: string, query: string): Promise<R
     // Prospects still use Google Maps primarily
     const leads = await runGoogleMapsScraper([`${query} in ${zipCode}`]);
     return leads.map(l => ({ ...l, confidenceScore: 1 }));
+};
+
+/**
+ * Calculates local market saturation based on vendor count
+ */
+export const getMarketSaturation = async (zipCode: string, trade: string) => {
+    const actorId = 'trudax/yellow-pages-us-scraper';
+    const input = {
+        search: trade,
+        location: zipCode,
+        maxItems: 50, // Higher sample for density calc
+    };
+
+    try {
+        const run = await apifyClient.actor(actorId).call(input);
+        const { defaultDatasetId } = run;
+        const { items } = await apifyClient.dataset(defaultDatasetId).listItems();
+
+        const count = items.length;
+        let density: 'Low' | 'Medium' | 'High' = 'Low';
+        let difficulty: 'Easy' | 'Moderate' | 'Hard' = 'Easy';
+
+        if (count > 30) {
+            density = 'High';
+            difficulty = 'Easy';
+        } else if (count > 10) {
+            density = 'Medium';
+            difficulty = 'Moderate';
+        } else {
+            density = 'Low';
+            difficulty = 'Hard';
+        }
+
+        return { count, density, difficulty, zipCode, trade };
+    } catch (err) {
+        console.error('Saturation check failed:', err);
+        return null;
+    }
 };
