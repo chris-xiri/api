@@ -45,8 +45,8 @@ export const generateDailyJobs = async () => {
         const newJob: Job = {
             locationId: schedule.locationId,
             vendorId: location.preferredVendorId,
-            date: new Date(), // Today
-            status: 'Scheduled',
+            date: new Date().toISOString(), // Today
+            status: 'assigned',
             type: 'Recurring',
             financials: {
                 clientPrice,

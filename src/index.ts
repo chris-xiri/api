@@ -35,9 +35,21 @@ app.get('/', (req, res) => {
     res.send('Xiri API is running');
 });
 
+import cron from 'node-cron';
+import { processDailyDrip } from './services/campaignService';
+
+// ... (existing code)
+
 if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
     app.listen(port, () => {
         console.log(`Server is running on port ${port}`);
+
+        // Initialize Cron Jobs
+        console.log('Initializing Cron Jobs...');
+        cron.schedule('0 9 * * *', () => {
+            console.log('Running daily campaign drip...');
+            processDailyDrip();
+        });
     });
 }
 

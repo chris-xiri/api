@@ -22,7 +22,9 @@ export const submitAudit = async (jobId: string, rating: number, notes: string, 
     });
 
     // 3. Recalculate Location Health Score
-    await updateLocationHealthScore(job.locationId);
+    if (job.locationId) {
+        await updateLocationHealthScore(job.locationId);
+    }
 
     return { jobId, status: 'Verified', rating };
 };

@@ -18,7 +18,7 @@ export const summarizeVendor = async (vendorData: Partial<Vendor>): Promise<stri
         // Temporarily disabled due to API compatibility issues
         // Return a basic summary based on available data
         const trades = vendorData.trades?.join(', ') || 'General Services';
-        const name = vendorData.companyName || 'Unknown Vendor';
+        const name = vendorData.name || 'Unknown Vendor';
 
         return `${name} specializes in ${trades}. This vendor was discovered through automated market research and requires compliance verification before activation.`;
 
