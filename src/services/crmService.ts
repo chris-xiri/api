@@ -26,6 +26,7 @@ export const importAccounts = async (leads: RawLead[], type: 'prospect' | 'vendo
                 fullNumber: lead.address,
             },
             aiContextSummary: lead.aiSummary,
+            confidenceScore: lead.confidenceScore,
             ownerId: ownerId,
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),

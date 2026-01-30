@@ -40,6 +40,7 @@ export interface Account {
     // Metadata
     ownerId?: string;
     aiContextSummary?: string;
+    confidenceScore?: number;
     createdAt?: Date | string;
     updatedAt?: Date | string;
 }
