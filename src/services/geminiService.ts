@@ -45,10 +45,11 @@ export const generateDeepVendorSummary = async (companyName: string, location: s
             return { summary: 'Credentials missing for deep analysis.', priorityScore: 5 };
         }
 
-        // 1. Google SERP Search
+        // 1. Google SERP Search - Targeted at public records and SOS filings
         console.log(`Deep Research: Searching SERP for ${companyName} in ${location}...`);
         const searchQueries = [
-            `${companyName} ${location} owner history news`,
+            `${companyName} ${location} Secretary of State registration NY dos.ny.gov`,
+            `${companyName} ${location} owner "managing member" "registered agent"`,
             `${companyName} ${location} commercial projects reviews`
         ];
 
@@ -65,24 +66,23 @@ export const generateDeepVendorSummary = async (companyName: string, location: s
             url: item.url
         }));
 
-        // 2. Feed to Gemini
+        // 2. Feed to Gemini - Instructed to be an "Entity Investigator"
         const prompt = `
-            Analyze this vendor for a Facility Management Recruiter using the following search results. 
-            Company: ${companyName}
-            Location: ${location}
+            You are an investigative assistant for a Facility Management Recruiter. 
+            Analyze the following search snippets to find official ownership data for the company: "${companyName}" in "${location}".
 
-            Search Results Context:
+            SEARCH DATA:
             ${JSON.stringify(snippets, null, 2)}
 
-            Identify:
-            1) Who are the key principals/owners? (If found, else specify "likely independent")
-            2) What specific types of commercial projects have they done?
-            3) Are there any red flags or recent news (lawsuits, awards, transitions)?
-            4) Provide a 'Recruiter Priority Score' (1-10) based on their perceived scale, professional footprint, and reliability. 
+            YOUR MISSION:
+            1) Identify the Owner or Principal. Look specifically for "Managing Member", "Registered Agent", or "President" from SOS filings (primarily dos.ny.gov for NY).
+            2) Identify their primary commercial specialty (e.g. multi-family, retail, industrial).
+            3) Check for reliability signals (years in business, awards, or legal issues).
+            4) Provide a 'Recruiter Priority Score' (1-10) based on their professional footprint and direct ownership clarity.
 
-            Format:
-            A concise 3-4 sentence qualitative analysis. 
-            On a new line, end with "PRIORITY_SCORE: [number]"
+            OUTPUT FORMAT:
+            Start with "ANALYSIS:" followed by 3-4 professional sentences.
+            End with "PRIORITY_SCORE: [number]"
         `;
 
         const result = await model.generateContent(prompt);
