@@ -1,7 +1,7 @@
 import { ApifyClient } from 'apify-client';
 import dotenv from 'dotenv';
 import { RawLead } from '../utils/types';
-import { summarizeVendor } from './geminiService';
+import { summarizeVendor, generateDeepVendorSummary } from './geminiService';
 
 dotenv.config();
 
@@ -197,18 +197,21 @@ export const scrapeVendors = async (zipCode: string, trade: string): Promise<Raw
 
     const finalLeads = mergeAndCrossReference(gMapsLeads, yPagesLeads);
 
-    // Add AI Summaries for merged leads that don't have one 
-    // (Note: runGoogleMapsScraper already does it for its leads, but merged YP leads might need it)
+    // Add Deep AI Summaries for merged leads
     const enrichedLeads = await Promise.all(finalLeads.map(async (lead) => {
-        if (!lead.aiSummary) {
-            lead.aiSummary = await summarizeVendor({
-                companyName: lead.companyName,
-                trades: lead.trades,
-                website: lead.website,
-                phone: lead.phone,
-                address: lead.address,
-                rating: lead.rating
-            } as any).catch(() => "Summary generation failed.");
+        try {
+            const location = lead.address || zipCode;
+            const { summary, priorityScore } = await generateDeepVendorSummary(lead.companyName, location);
+
+            lead.aiSummary = summary;
+            // Store priority score if we want to expose it specifically, 
+            // otherwise factor it into confidence/rating
+            lead.confidenceScore = (lead.confidenceScore || 1) + (priorityScore / 10);
+        } catch (err) {
+            console.error('Deep Enrichment failed for:', lead.companyName, err);
+            if (!lead.aiSummary) {
+                lead.aiSummary = await summarizeVendor(lead).catch(() => "Summary generation failed.");
+            }
         }
         return lead;
     }));
