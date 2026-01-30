@@ -11,6 +11,7 @@ const port = process.env.PORT || 3000;
 import vendorRoutes from './routes/vendorRoutes';
 import jobRoutes from './routes/jobRoutes';
 import auditRoutes from './routes/auditRoutes';
+import crmRoutes from './routes/crmRoutes';
 
 app.use(helmet());
 app.use(cors());
@@ -21,13 +22,23 @@ app.use(express.json());
 
 app.use('/api/vendors', vendorRoutes);
 app.use('/api/jobs', jobRoutes);
+
 app.use('/api/audit', auditRoutes);
+app.use('/api/crm', crmRoutes);
+
+app.get('/health', (req, res) => {
+    res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
+});
 
 
 app.get('/', (req, res) => {
     res.send('Xiri API is running');
 });
 
-app.listen(port, () => {
-    console.log(`Server is running on port ${port}`);
-});
+if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
+    app.listen(port, () => {
+        console.log(`Server is running on port ${port}`);
+    });
+}
+
+export default app;

@@ -4,7 +4,7 @@ import { Account, RawLead } from '../utils/types';
 /**
  * Batch imports raw leads as Accounts (Prospects or Vendors)
  */
-export const importAccounts = async (leads: RawLead[], type: 'prospect' | 'vendor', ownerId?: string): Promise<number> => {
+export const importAccounts = async (leads: RawLead[], type: 'prospect' | 'vendor', ownerId?: string, initialStatus?: Account['status']): Promise<number> => {
     if (leads.length === 0) return 0;
 
     const batch = db.batch();
@@ -17,7 +17,7 @@ export const importAccounts = async (leads: RawLead[], type: 'prospect' | 'vendo
             id: docRef.id,
             name: lead.companyName,
             type: type,
-            status: type === 'prospect' ? 'Lead' : 'Raw Lead' as any, // Cast for compatibility if using strictly typed strings
+            status: initialStatus || (type === 'prospect' ? 'Lead' : 'New'),
             rating: lead.rating || 0,
             website: lead.website,
             phone: lead.phone,
@@ -67,4 +67,18 @@ export const getAccountDetails = async (accountId: string) => {
         contacts: [], // Stub for now
         activities: [], // Stub for now
     };
+};
+
+/**
+ * Fetches multiple accounts with optional filtering
+ */
+export const getAccounts = async (type?: 'prospect' | 'vendor') => {
+    let query: FirebaseFirestore.Query = db.collection('accounts');
+
+    if (type) {
+        query = query.where('type', '==', type);
+    }
+
+    const snapshot = await query.get();
+    return snapshot.docs.map(doc => doc.data() as Account);
 };

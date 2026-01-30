@@ -16,7 +16,7 @@ export interface Account {
         fullNumber?: string; // e.g. "123 Main St"
     };
     sqFt?: number; // Only for prospects
-    status: 'Active' | 'Inactive' | 'Lead' | 'Churned';
+    status: 'New' | 'Contacted' | 'Vetting' | 'Active' | 'Inactive' | 'Lead' | 'Churned' | 'Rejected';
     rating: number; // 0-5
 
     // Vendor specific
@@ -24,6 +24,8 @@ export interface Account {
     compliance?: {
         coiExpiry: Date | string;
         w9OnFile: boolean;
+        insuranceVerified?: boolean;
+        isLLC?: boolean;
     };
 
     // Metadata
