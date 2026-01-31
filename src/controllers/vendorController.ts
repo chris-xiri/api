@@ -172,12 +172,42 @@ export const getLocationSuggestionsHandler = async (req: Request, res: Response)
         const text = result.response.text().trim();
 
         // Cleanup markdown if AI wraps it
-        const jsonMatch = text.match(/\[.*\]/s);
+        const jsonMatch = text.match(/\[[\s\S]*\]/);
         const suggestions = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
 
         return res.status(200).json({ data: suggestions });
     } catch (error) {
         console.error('Error in getLocationSuggestionsHandler:', error);
         return res.status(200).json({ data: [] }); // Fail silently for autocomplete
+    }
+};
+
+export const deleteVendorHandler = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+
+        if (!id) {
+            return res.status(400).json({ error: 'Vendor ID is required' });
+        }
+
+        console.log(`Deleting vendor ${id}...`);
+
+        // 1. Delete associated activities (optional but recommended)
+        const activitiesSnapshot = await db.collection('activities').where('accountId', '==', id).get();
+        const batch = db.batch();
+
+        activitiesSnapshot.docs.forEach((doc) => {
+            batch.delete(doc.ref);
+        });
+
+        // 2. Delete the vendor document
+        batch.delete(db.collection('accounts').doc(id));
+
+        await batch.commit();
+
+        return res.status(200).json({ message: 'Vendor and associated activities deleted successfully' });
+    } catch (error) {
+        console.error('Error in deleteVendorHandler:', error);
+        return res.status(500).json({ error: 'Internal Server Error' });
     }
 };
