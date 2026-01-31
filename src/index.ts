@@ -13,6 +13,7 @@ import jobRoutes from './routes/jobRoutes';
 import auditRoutes from './routes/auditRoutes';
 import crmRoutes from './routes/crmRoutes';
 import activityRoutes from './routes/activityRoutes';
+import contactRoutes from './routes/contactRoutes';
 
 app.use(helmet());
 app.use(cors());
@@ -27,6 +28,7 @@ app.use('/api/jobs', jobRoutes);
 app.use('/api/audit', auditRoutes);
 app.use('/api/crm', crmRoutes);
 app.use('/api/activities', activityRoutes);
+app.use('/api/contacts', contactRoutes);
 
 app.get('/health', (req, res) => {
     res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
